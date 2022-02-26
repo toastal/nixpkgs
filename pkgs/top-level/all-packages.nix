@@ -3786,6 +3786,8 @@ with pkgs;
 
   svt-av1 = callPackage ../tools/video/svt-av1 { };
 
+  wylt = callPackage ../tools/audio/wylt { };
+
   inherit (callPackages ../servers/rainloop { })
     rainloop-community
     rainloop-standard;
