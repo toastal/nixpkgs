@@ -1,0 +1,60 @@
+{ lib
+, buildPythonApplication
+, fetchPypi
+, xorg
+, certifi
+, dbus-python
+, build
+, wxPython_4_1
+, send2trash
+, PyChromecast
+, distro
+, makeWrapper
+, argyllcms
+}:
+
+buildPythonApplication rec {
+  pname = "displaycal";
+  version = "3.9.7";
+
+  src = fetchPypi {
+    pname = "DisplayCAL";
+    inherit version;
+    sha256 = "sha256-sPWIpciaTPBwamBHoFc4h5XzpyY2/UgEQQVginmzWXU=";
+  };
+
+  propagatedBuildInputs = [
+    certifi
+    dbus-python
+    build
+    wxPython_4_1
+    send2trash
+    PyChromecast
+    distro
+  ];
+
+  buildInputs = with xorg; [
+    libX11
+    libXxf86vm
+    libXext
+    libXinerama
+    libXrandr
+  ];
+
+  pythonImportsCheck = [ "DisplayCAL" ];
+
+  doCheck = false; # Tests try to access an X11 session.
+
+  postInstall = ''
+    for binary in "$out/bin/"*; do
+      wrapProgram "$binary" --prefix PATH : ${lib.makeBinPath [ argyllcms ]}
+    done
+  '';
+
+  meta = with lib; {
+    description = "DisplayCAL Modernization Project (Migrated to Python 3)";
+    homepage = "https://github.com/eoyilmaz/displaycal-py3";
+    license = licenses.gpl3Plus;
+    maintainers = with maintainers; [ kranzes ];
+  };
+}
