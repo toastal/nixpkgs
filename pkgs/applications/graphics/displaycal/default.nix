@@ -11,6 +11,8 @@
 , distro
 , makeWrapper
 , argyllcms
+, gtk3
+, gsettings-desktop-schemas
 }:
 
 buildPythonApplication rec {
@@ -45,9 +47,17 @@ buildPythonApplication rec {
 
   doCheck = false; # Tests try to access an X11 session.
 
+  # no idea why it looks there - symlink .json lang (everything)
   postInstall = ''
+    for x in $out/share/DisplayCAL/*; do
+      ln -s $x $out/lib/python3.10/site-packages/DisplayCAL
+    done
+
     for binary in "$out/bin/"*; do
-      wrapProgram "$binary" --prefix PATH : ${lib.makeBinPath [ argyllcms ]}
+      wrapProgram "$binary" \
+        --prefix PATH : "${lib.makeBinPath [ argyllcms ]}" \
+        --prefix PYTHONPATH : "$PYTHONPATH" \
+        --prefix XDG_DATA_DIRS : "${gsettings-desktop-schemas}/share/gsettings-schemas/${gsettings-desktop-schemas.name}:${gtk3}/share/gsettings-schemas/${gtk3.name}"
     done
   '';
 
