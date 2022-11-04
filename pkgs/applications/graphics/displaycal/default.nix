@@ -17,12 +17,12 @@
 
 buildPythonApplication rec {
   pname = "displaycal";
-  version = "3.9.7";
+  version = "3.9.10";
 
   src = fetchPypi {
     pname = "DisplayCAL";
     inherit version;
-    sha256 = "sha256-sPWIpciaTPBwamBHoFc4h5XzpyY2/UgEQQVginmzWXU=";
+    sha256 = "sha256-oDHDVb0zuAC49yPfmNe7xuFKaA1BRZGr75XwsLqugHs=";
   };
 
   propagatedBuildInputs = [
