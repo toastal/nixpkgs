@@ -1,5 +1,6 @@
 { lib
-, python3
+, python311
+, fetchFromGitHub
 , fetchPypi
 , wrapGAppsHook
 , gtk3
@@ -8,23 +9,32 @@
 , argyllcms
 }:
 
-python3.pkgs.buildPythonApplication rec {
+python311.pkgs.buildPythonApplication rec {
   pname = "displaycal";
-  version = "3.9.10";
+  version = "3.9.11";
   format = "setuptools";
+  #format = "wheel";
+  #format = "other";
 
-  src = fetchPypi {
-    pname = "DisplayCAL";
-    inherit version;
-    hash = "sha256-oDHDVb0zuAC49yPfmNe7xuFKaA1BRZGr75XwsLqugHs=";
+  #src = fetchPypi {
+  #  pname = "DisplayCAL";
+  #  inherit version;
+  #  sha256 = "zAZW2eMjwRYevlz8KEzTxzGO8vx5AydfY3vGTapNo1c=";
+  #};
+  src = fetchFromGitHub {
+    owner = "eoyilmaz";
+    repo = "displaycal-py3";
+    rev = "refs/tags/${version}";
+    sha256 = "HwU/Rz+kxyZ8CuPC0ZNzwXegRAQOlLWhm1FqZW/lzXA=";
   };
 
   nativeBuildInputs = [
+    #python311.pkgs.setuptools
     wrapGAppsHook
     gtk3
   ];
 
-  propagatedBuildInputs = with python3.pkgs; [
+  propagatedBuildInputs = with python311.pkgs; [
     build
     certifi
     wxPython_4_2
