@@ -12,11 +12,13 @@
 , buildFeatures ? []
 }:
 
-rustPlatform.buildRustPackage rec {
-  inherit buildNoDefaultFeatures buildFeatures;
-
+let
   pname = "himalaya";
   version = "1.0.0-beta.2";
+in
+rustPlatform.buildRustPackage {
+  pname = pname;
+  version = version;
 
   src = fetchFromGitHub {
     owner = "soywod";
@@ -27,19 +29,22 @@ rustPlatform.buildRustPackage rec {
 
   cargoSha256 = "0IYpuKq5amAcYtsDMzJGghbxkuldAulsgUmChTl2DIg=";
 
+  buildNoDefaultFeatures = buildNoDefaultFeatures;
+  buildFeatures = buildFeatures;
+
   nativeBuildInputs = [ ]
-    ++ lib.optional (builtins.elem "pgp-gpg" buildFeatures) pkg-config
-    ++ lib.optional (installManPages || installShellCompletions) installShellFiles;
+    ++ lib.lists.optional (lib.lists.elem "pgp-gpg" buildFeatures) pkg-config
+    ++ lib.lists.optional (installManPages || installShellCompletions) installShellFiles;
 
   buildInputs = [ ]
-    ++ lib.optional (builtins.elem "notmuch" buildFeatures) notmuch
-    ++ lib.optional (builtins.elem "pgp-gpg" buildFeatures) gpgme;
+    ++ lib.lists.optional (lib.lists.elem "notmuch" buildFeatures) notmuch
+    ++ lib.lists.optional (lib.lists.elem "pgp-gpg" buildFeatures) gpgme;
 
-  postInstall = lib.optionalString installManPages ''
+  postInstall = lib.strings.optionalString installManPages ''
     mkdir -p $out/man
     $out/bin/himalaya man $out/man
     installManPage $out/man/*
-  '' + lib.optionalString installShellCompletions ''
+  '' + lib.strings.optionalString installShellCompletions ''
     installShellCompletion --cmd himalaya \
       --bash <($out/bin/himalaya completion bash) \
       --fish <($out/bin/himalaya completion fish) \
