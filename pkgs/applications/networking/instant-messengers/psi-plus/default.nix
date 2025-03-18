@@ -42,14 +42,14 @@ assert builtins.elem (lib.toLower chatType) [
 
 assert enablePsiMedia -> enablePlugins;
 
-mkDerivation rec {
+mkDerivation (finalAttrs: {
   pname = "psi-plus";
   version = "1.5.1653";
 
   src = fetchFromGitHub {
     owner = "psi-plus";
     repo = "psi-plus-snapshots";
-    rev = version;
+    rev = finalAttrs.version;
     sha256 = "sha256-9WT2S6ZgIsrHoEAvlWUB078gzCdrPylvSjkkogU5tsU=";
   };
 
@@ -116,4 +116,4 @@ mkDerivation rec {
     license = lib.licenses.gpl2Only;
     platforms = lib.platforms.linux;
   };
-}
+})
