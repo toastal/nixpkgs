@@ -658,7 +658,7 @@ in
                 "/ws/" = {
                   "proxy.preserve-host" = "ON";
                   "proxy.tunnel" = "ON";
-                  "proxy.reverse.url" = "http://${cfg.settings.DAEMON_INTERFACE}:${builtins.toString cfg.port}/";
+                  "proxy.reverse.url" = "ws://${cfg.settings.DAEMON_INTERFACE}:${builtins.toString cfg.port}/";
                 };
                 "/" =
                   {
