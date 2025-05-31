@@ -104,7 +104,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   meta = {
     description = "Session manager for Budgie";
-    homepage = "https://github.com/BuddiesOfBudgie/budgie-session";
+    homepage = "https://buddiesofbudgie.org";
     changelog = "https://github.com/BuddiesOfBudgie/budgie-session/releases/tag/v${finalAttrs.version}";
     license = lib.licenses.gpl2Plus;
     teams = [ lib.teams.budgie ];
