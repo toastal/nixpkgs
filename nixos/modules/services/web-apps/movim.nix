@@ -791,7 +791,6 @@ in
 
       mysql = mkIf (cfg.database.createLocally && cfg.database.type == "mariadb") {
         enable = mkDefault true;
-        package = mkDefault pkgs.mariadb;
         ensureDatabases = [ cfg.database.name ];
         ensureUsers = [
           {
@@ -971,6 +970,9 @@ in
     '')
     (lib.mkRemovedOptionModule [ "minifyStaticFiles" "svg" "package" ] ''
       Override services.movim.package instead.
+    '')
+    (lib.mkRemovedOptionModule [ "mysql" "package" ] ''
+      This option never did anything. Please remove.
     '')
   ];
 }
