@@ -656,6 +656,10 @@ in
   freetube = discoverTests (import ./freetube.nix);
   freshrss = import ./freshrss { inherit runTest; };
   frigate = runTest ./frigate.nix;
+  flyspray = import ./web-apps/flyspray/test-support.nix {
+    inherit runTest;
+    inherit (pkgs) lib;
+  };
   froide-govplan = runTest ./web-apps/froide-govplan.nix;
   frp = runTest ./frp.nix;
   frr = runTest ./frr.nix;
