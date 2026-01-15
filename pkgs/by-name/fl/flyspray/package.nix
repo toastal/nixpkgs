@@ -50,11 +50,17 @@ stdenv.mkDerivation (finalAttrs: {
       extraConfig = phpCfg;
     };
 
-  postInstall = ''
-    DIR="$out/share/php/flyspray"
-    mkdir -p "$DIR"
-    cp -Tr "$src" "$DIR"
-  '';
+  postInstall =
+    let
+      dir = "$out/share/php/flyspray";
+    in
+    ''
+      mkdir -p "${dir}"
+      cp -Tr "$src" "${dir}"
+      chmod -R u+w "${dir}"
+      rm -rf "${dir}/cache" "${dir}/attachments" "${dir}/avatars"
+      rm -f "${dir}/flyspray.conf.php"
+    '';
 
   meta = {
     description = "Lightweight, web-based bug tracking system written in PHP for assisting with software development and project managements";
