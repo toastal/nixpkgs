@@ -12,6 +12,7 @@
 let
 
   cfgZfs = config.boot.zfs;
+  cfgTzpfms = config.boot.initrd.tzpfms;
   cfgExpandOnBoot = config.services.zfs.expandOnBoot;
   cfgSnapshots = config.services.zfs.autoSnapshot;
   cfgSnapFlags = cfgSnapshots.flags;
@@ -210,6 +211,40 @@ let
               ) (lib.filter (p: (lib.elemAt (lib.splitString "/" p) 0) == pool) clevisDatasets)
             )}
 
+          ${lib.optionalString cfgTzpfms.enable (
+            let
+              datasets = lib.filter (ds: datasetToPool ds == pool) cfgTzpfms.datasets;
+              backendArgs = lib.escapeShellArgs (
+                lib.concatMap (b: [
+                  "-b"
+                  b
+                ]) cfgTzpfms.backends
+              );
+            in
+            /* bash */ ''
+              tzpfms_load_key() {
+                zfs-tpm-list -H ${backendArgs} "$@" 2>/dev/null | while IFS=$'\t' read -r name backend status _; do
+                  case "$backend" in
+                    ${lib.optionalString (lib.elem "TPM2" cfgTzpfms.backends) /* bash */ ''
+                      TPM2)
+                        zfs-tpm2-load-key "$name" || true
+                        ;;
+                    ''}
+                    ${lib.optionalString (lib.elem "TPM1.X" cfgTzpfms.backends) /* bash */ ''
+                      TPM1.X)
+                        zfs-tpm1x-load-key "$name" || true
+                        ;;
+                    ''}
+                    *)
+                      echo "Unsupported tzpfms backend: $backend" >&2
+                      ;;
+                  esac
+                done
+              }
+
+              ${lib.concatMapStringsSep "\n" (ds: "tzpfms_load_key -u ${lib.escapeShellArg ds}") datasets}
+            ''
+          )}
 
             ${lib.optionalString keyLocations.hasKeys ''
               ${keyLocations.command} | while IFS=$'\t' read -r ds kl ks; do
@@ -337,6 +372,16 @@ in
           to exclusively use ZFS commands to manage filesystems. If so, since NixOS/systemd
           will not be managing those filesystems, you will need to specify the ZFS pool here
           so that NixOS automatically imports it on every boot.
+        '';
+      };
+
+      tzpfmsRootPools = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        internal = true;
+        description = ''
+          Pools that need to be imported in initrd for tzpfms key unlock.
+          Set by boot.initrd.tzpfms module.
         '';
       };
 
@@ -772,6 +817,41 @@ in
                 lib.concatMapStringsSep "\n" (
                   elem: "clevis decrypt < /etc/clevis/${elem}.jwe | zfs load-key ${elem}"
                 ) (lib.filter (p: (lib.elemAt (lib.splitString "/" p) 0) == pool) clevisDatasets)
+              )}
+
+              ${lib.optionalString config.boot.initrd.tzpfms.enable (
+                let
+                  datasets = lib.filter (ds: datasetToPool ds == pool) cfgTzpfms.datasets;
+                  backendArgs = lib.escapeShellArgs (
+                    lib.concatMap (b: [
+                      "-b"
+                      b
+                    ]) cfgTzpfms.backends
+                  );
+                in
+                /* bash */ ''
+                  tzpfms_load_key() {
+                    echo "Loading tzpfms key for $1 …"
+                    zfs-tpm-list -H ${backendArgs} "$@" 2>/dev/null | while IFS=$'\t' read -r name backend status _; do
+                      case "$backend" in
+                        ${lib.optionalString (lib.elem "TPM2" cfgTzpfms.backends) ''
+                          TPM2)
+                            zfs-tpm2-load-key "$name" || true
+                            ;;
+                        ''}
+                        ${lib.optionalString (lib.elem "TPM1.X" cfgTzpfms.backends) ''
+                          TPM1.X)
+                            zfs-tpm1x-load-key "$name" || true
+                            ;;
+                        ''}
+                        *)
+                          echo "Unsupported tzpfms backend: $backend" >&2
+                          ;;
+                      esac
+                    done
+                  }
+                  ${lib.concatMapStringsSep "\n" (ds: "tzpfms_load_key -u ${lib.escapeShellArg ds}") datasets}
+                ''
               )}
 
               ${
