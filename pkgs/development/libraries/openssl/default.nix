@@ -130,6 +130,7 @@ let
         !stdenv.hostPlatform.isDarwin
         && !stdenv.hostPlatform.isAndroid
         && !(stdenv.hostPlatform.useLLVM or false)
+        && stdenv.targetPlatform.libc != "picolibc"
         && stdenv.cc.isGNU;
 
       nativeBuildInputs =
