@@ -264,6 +264,14 @@ stdenv.mkDerivation (finalAttrs: {
         --replace-quiet 'awk' '${lib.getExe' gawk "awk"}'
     done
   ''
+  + lib.optionalString (stdenv.hostPlatform != stdenv.buildPlatform) ''
+    # When cross-compiling, the xtask build tool (compiled for the build platform)
+    # picks up the target platform’s pcre2 via pkg-config. Force pcre2-sys to
+    # build pcre2 from bundled source to avoid linking aarch64 .so into an
+    # x86_64 binary.
+    substituteInPlace cmake/Docs.cmake \
+      --replace-fail 'EXECUTABLE}"' 'EXECUTABLE}" "PCRE2_SYS_STATIC=1"'
+  ''
   + ''
     tee -a share/__fish_build_paths.fish.in < ${fishPreInitHooks}
   '';
