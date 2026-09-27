@@ -1,0 +1,200 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i dash -p curl gawk jq nixfmt
+# shellcheck shell=dash
+set -eu
+
+release_tag=
+output=
+
+usage() {
+	echo "Usage: resolve-components [ELEASE-TAG] [OUTPUT]"
+	echo
+	echo "	--help  Show this help message."
+}
+
+# Argument parsing
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--help)
+			usage; exit 0 ;;
+		*)
+			# Positional arguments
+			if [ -z "$release_tag" ]; then
+				release_tag="$1"
+				shift
+			elif [ -z "$output" ]; then
+				output="$1"
+				shift
+			else
+				echo "Error: Too many arguments" >&2
+				usage
+				exit 1
+		   fi
+		   ;;
+	esac
+done
+
+# TODO: find latest tag
+if [ -z "$release_tag" ]; then
+	echo "Missing RELEASE_TAG argument." >&2
+	exit 1
+fi
+
+output="${output:-pkgs/development/espressif/components.nix}"
+
+echo "─── Resolving component SHAs for crosstool-NG release $release_tag ───" >&2
+
+get_GitHub_API_for() {
+	owner="$1"
+	repository="$2"
+	echo "https://api.github.com/repos/${owner}/${repository}/git"
+}
+
+get_SHA_from_GitHub_API() {
+	owner="$1"
+	repository="$2"
+	ref="$3"
+	API_URL=$(get_GitHub_API_for "$owner" "$repository")
+
+	body=$(curl -s -L "${API_URL}/ref/tags/${ref}")
+	SHA=$(echo "$body" | jq -r '.object.sha // .sha // empty')
+	if [ -z "$SHA" ]; then
+		# Else try as a branch ref
+		body=$(curl -s -L "${API_URL}/ref/heads/${ref}")
+		SHA=$(echo "$body" | jq -r '.object.sha // .sha // empty')
+	fi
+	if [ -z "$SHA" ]; then
+		echo "ERROR: Could not resolve ${owner_repo}/${ref}" >&2
+		echo "Response: $(echo "$body" | jq -r '.message // empty')" >&2
+		exit 1
+	fi
+	echo "$SHA"
+}
+
+# Look up a submodule gitlink SHA from the crosstool-NG release tag tree.
+get_gitlink() {
+	name="$1"
+
+	tag_body=$(curl -s -L "$(get_GitHub_API_for "espressif" "crosstool-NG")/ref/tags/${release_tag}")
+	tag_SHA=$(echo "$tag_body" | jq -r '.object.sha // .sha // empty')
+	if [ -z "$tag_SHA" ]; then
+		echo "ERROR: Could not resolve crosstool-NG tag $release_tag" >&2
+		exit 1
+	fi
+
+	# resolve annotated tag → target commit
+	tag_type=$(echo "$tag_body" | jq -r '.object.type // empty')
+	if [ "$tag_type" = "tag" ]; then
+		tag_SHA=$(curl -s -L "$(get_GitHub_API_for "espressif" "crosstool-NG")/tags/${tag_SHA}" | \
+			jq -r '.object.sha // empty')
+	fi
+
+	# commit → tree SHA from the commit object itself
+	commit_body=$(curl -s -L "$(get_GitHub_API_for "espressif" "crosstool-NG")/commits/${tag_SHA}")
+	tree_SHA=$(echo "$commit_body" | jq -r '.tree.sha // empty')
+	if [ -z "$tree_SHA" ]; then
+		echo "ERROR: Commit $tag_SHA has no tree (possibly not found)" >&2
+		echo "	Response: $(echo "$commit_body" | jq -r '.message // empty')" >&2
+		exit 1
+	fi
+
+	# Step 4: find the gitlink (mode 160000, type commit) by path in the tree
+	SHA=$(curl -s -L "$(get_GitHub_API_for "espressif" "crosstool-NG")/trees/${tree_SHA}" | \
+			jq -r --arg name "$name" '
+				[.tree[] | select(.type == "commit" and .path == $name)] | .[0].sha // empty
+			' 2>/dev/null || true)
+	if [ -z "$SHA" ]; then
+		echo "ERROR: Could not find gitlink $name in tree of $release_tag (tree: $tree_SHA)" >&2
+		exit 1
+	fi
+	echo "$SHA"
+}
+
+# Read the crosstool.config from the release tag.
+# This gives us the component tag names (e.g., esp-15.2.0_20251204).
+CONFIG_URL="https://raw.githubusercontent.com/espressif/crosstool-NG/${release_tag}/samples/xtensa-esp-elf/crosstool.config"
+CONFIG_BODY=$(curl -s -L "$CONFIG_URL")
+
+if [ -z "$CONFIG_BODY" ]; then
+	echo "ERROR: Could not fetch crosstool.config from tag $release_tag" >&2
+	exit 1
+fi
+
+get_config_value() {
+	printf '%s\n' "$CONFIG_BODY" | gawk -v key="$1" '$0 ~ "^" key "=" { gsub(/"/, ""); sub(key "=", ""); print; exit }'
+}
+
+# Now resolve each component to a commit SHA.
+echo >&2
+echo "Resolving component tags → commit SHAs …" >&2
+
+GCC_tag=$(get_config_value "CT_GCC_DEVEL_BRANCH")
+binutils_tag=$(get_config_value "CT_BINUTILS_DEVEL_BRANCH")
+picolibc_tag=$(get_config_value "CT_PICOLIBC_DEVEL_BRANCH")
+newlib_tag=$(get_config_value "CT_NEWLIB_DEVEL_BRANCH")
+
+printf "	gcc (${GCC_tag}): " >&2
+GCC_SHA=$(get_SHA_from_GitHub_API "espressif" "gcc" "$GCC_tag")
+echo "$GCC_SHA" >&2
+
+printf "	binutils-gdb (${binutils_tag}): " >&2
+binutils_SHA=$(get_SHA_from_GitHub_API "espressif" "binutils-gdb" "$binutils_tag")
+echo "$binutils_SHA" >&2
+
+printf "	picolibc (${picolibc_tag}): " >&2
+picolibc_SHA=$(get_SHA_from_GitHub_API "espressif" "picolibc" "$picolibc_tag")
+echo "$picolibc_SHA" >&2
+
+printf "	newlib (${newlib_tag}): " >&2
+newlib_SHA=$(get_SHA_from_GitHub_API "espressif" "newlib-esp32" "$newlib_tag")
+echo "$newlib_SHA" >&2
+
+# Resolve submodule gitlinks from the crosstool tree.
+echo >&2
+echo "Resolving submodule gitlinks from crosstool-NG tree …" >&2
+
+overlay_SHA=$(get_gitlink "overlays")
+echo "	overlays: $overlay_SHA" >&2
+
+dynconfig_SHA=$(get_gitlink "xtensa-dynconfig")
+echo "	dynconfig: $dynconfig_SHA" >&2
+
+wrapper_SHA=$(get_gitlink "esp-toolchain-bin-wrappers")
+echo "	wrapper: $wrapper_SHA" >&2
+
+# Generate the components.nix file.
+echo >&2
+printf "Writing $output … " >&2
+
+cat <<EOF_NIX >"$output"
+# DO NOT EDIT! This file is generated by resolve-components
+# Usage: ./resolve-components [esp-X.Y.Z_YYYYMMDD]
+# See: pkgs/development/espressif/resolve-components
+{ lib }:
+
+lib.fix (self: {
+	release = "${release_tag}";
+
+	fork = {
+		gcc = "${GCC_SHA}";
+		binutils-gdb = "${binutils_SHA}";
+		picolibc = "${picolibc_SHA}";
+		newlib = "${newlib_SHA}";
+	};
+
+	submodule = {
+		overlays = "${overlay_SHA}";
+		dynconfig = "${dynconfig_SHA}";
+		bin-wrappers = "${wrapper_SHA}";
+	};
+
+	# List all resolved SHAs as a flat attrset.
+	allSHAs = self.fork // self.submodule;
+})
+EOF_NIX
+
+nixfmt "$output"
+
+echo "done." >&2
+# vim: filetype=sh
+# vim: noet ci pi sts=0
